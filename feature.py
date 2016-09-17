@@ -3,37 +3,23 @@ import cv2, math, random
 import numpy as np
 
 class feature:
-    def __init__(self, arv):
+    def __init__(self, img, difference=None ):
         self.features = None
-        if type(arv) == str:
-            self.image = cv2.imread(arv)
-            self.name = arv
+        if type(img) == str:
+            self.image = cv2.imread(img)
+            self.diff = self.image
+            self.name = img 
         else:
-            self.image = arv 
+            self.image = img
+            self.diff = difference
 
-    #计算雨雪的纹理特征
-    def Grain(self):
-        #图像格式化
-        im = cv2.resize(self.image, (512,512), interpolation=cv2.INTER_CUBIC)
-        im = cv2.blur(im, (5,5))
-
-        features = np.linspace(0.0, 0.0, 4*4*4) 
-        features.shape = 16, 4
-
-        #把图片分为4*4 的小图片分别计算纹理特征
-        for i in range(4):
-            for j in range(4):
-                features[i*4+j] = feature.GLCM(im[i*128:(i+1)*128, j*128:(j+1)*128])
-        features.shape = 64
-        return features
-
-    #计算特征向量
+    #计算纹理特征
     #size 为图像取样大小
     #gray 为缩小的灰度值
     #random 图片上随机取块进行计算
     @staticmethod
     def GLCM(img, sizex=127, sizey=127, gray=16):
-
+        print img.shape,sizex,sizey
         #默认只计算四个方向的灰度共生矩阵
         Sym = np.linspace(0.0, 0.0, gray*gray*4)
         Sym.shape = gray, gray, 4
@@ -42,6 +28,7 @@ class feature:
         if len(img.shape) == 3:
             #Gray = img[:,:,0]/gray
             Gray = (img[:,:,0]*0.299 + img[:,:,1]*0.587 + img[:,:,2]*0.114)/gray
+            Gray = np.array(Gray, np.int8)
         else:
             Gray = img/gray 
         
@@ -109,6 +96,19 @@ class feature:
             res[i] = sum(features[i,:])/4
         #4个特征
         return res
+    
+    #分块计算前后帧纹理特征，如果是单张图片就计算图片分块后本身的纹理特征
+    def Grain(self):
+        res = np.linspace(0.0, 0.0, 8*4) 
+        print self.diff.shape
+        x, y = self.diff.shape[:2]
+        x=x/4
+        y=y/4
+        for i in range(4):
+            for j in range(2):
+                res[(i+j*4)*4:(i+j*4+1)*4] = self.GLCM(self.diff[x*i:x*(i+1), y*j:y*(j+1)], x-1, y-1)        
+        return res
+
 
     #色彩饱和度直方图，饱和度特征
     def HSVhistogram(self):
@@ -134,29 +134,44 @@ class feature:
         #占图像5%,10%..100%的饱和度的值,20个特征
         return self.Contrast
 
+    #灰度
+    def DarkChannel(self):
+        im = cv2.resize(self.image, (512,512), interpolation=cv2.INTER_CUBIC)   
+
+        #计算每个像素RGB中最小的通道
+        DarkChannel = np.array([ np.array([ np.min(im[j, i, :]) for i in range(512) ])  for j in range(512) ])   
+        #最小值滤波 
+        for i in range(4, DarkChannel.shape[0]-4, 1):
+            for j in range(4, DarkChannel.shape[1]-4, 1):
+                DarkChannel[i,j] = np.min(DarkChannel[i-4:i+4, j-4:j+4])
+        self.HazeMedian = np.linspace(0, 0, 85)
+        self.HazeMedian[0] = np.median(DarkChannel)
+        #cv2.imwrite('./DarkChannel/%s'%self.name, DarkChannel) 
+        l = 1
+        for n in [2,4,8]:
+            for i in range(n):
+                for j in range(n):
+                    self.HazeMedian[i+j+l] = np.median(DarkChannel[512/n*i:512/n*(i+1),512/n*j:512/n*(j+1)])
+            l += n**2
+        
+        #print self.HazeMedian[0],85个特征
+        return self.HazeMedian
 
     #计算图片特征值
     def get_features(self):
-        #16*4 + 20 + 85 一共169个特征
-        self.features = np.linspace(0,0,105)
+        #8*4 + 20 + 85 一共137个特征
+        self.features = np.linspace(0, 0, 137)
         self.features[0:20] = self.HSVhistogram()
-        self.features[20:] = self.DarkChannel()
+        self.features[20:105] = self.DarkChannel()
+        self.features[105:] = self.Grain()
         self.features = np.array(self.features, dtype=np.float32)
-        self.features.shape = 1,105
+        self.features.shape = 1,137
         return self.features 
 
-    #用svm分类天气,只分晴雾
+    #用svm分类天气
     def svmclassify(self):
         weather_map = ['fog','snow','sunny','rain']
         svm = cv2.SVM()
-        svm.load('svm_data_fog2sunny.dat')
+        svm.load('svm_data.dat')
         return weather_map[int(svm.predict_all(self.get_features())[0][0])]
-
-    @staticmethod
-    def test(im):
-        gray = im[:,:,0]*0.299 + im[:,:,1]*0.587 + im[:,:,2]*0.114
-        print sum(sum(gray))/(im.shape[0]*im.shape[1])
-
-
-
 
