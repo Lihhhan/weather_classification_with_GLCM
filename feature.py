@@ -19,7 +19,7 @@ class feature:
     #random 图片上随机取块进行计算
     @staticmethod
     def GLCM(img, sizex=127, sizey=127, gray=16):
-        print img.shape,sizex,sizey
+        #print img.shape,sizex,sizey
         #默认只计算四个方向的灰度共生矩阵
         Sym = np.linspace(0.0, 0.0, gray*gray*4)
         Sym.shape = gray, gray, 4
@@ -100,7 +100,7 @@ class feature:
     #分块计算前后帧纹理特征，如果是单张图片就计算图片分块后本身的纹理特征
     def Grain(self):
         res = np.linspace(0.0, 0.0, 8*4) 
-        print self.diff.shape
+        #print self.diff.shape
         x, y = self.diff.shape[:2]
         x=x/4
         y=y/4
