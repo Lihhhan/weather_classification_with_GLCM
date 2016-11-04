@@ -121,8 +121,8 @@ class feature:
         res = guidedfilter.filter(self.gray_image)
         blur = np.array(res*255, np.uint8)
 
-        cv2.imshow('2', blur)
-        cv2.imshow('3', self.gray_image)
+        #cv2.imshow('2', blur)
+        #cv2.imshow('3', self.gray_image)
 
 
         diff = np.array(blur, np.float32) - np.array(self.gray_image, np.float32)
@@ -130,8 +130,8 @@ class feature:
         
         ret, high_fre = cv2.threshold(high_fre, np.mean(high_fre), 255, cv2.THRESH_BINARY) 
 
-        cv2.imshow('1', high_fre)
-        cv2.waitKey(0)
+        #cv2.imshow('1', high_fre)
+        #cv2.waitKey(0)
 
 
         #计算高频部分的hog特征
