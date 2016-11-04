@@ -1,5 +1,7 @@
 #coding=utf-8
-import cv2, math, random
+import cv2, math, random, traceback
+from guided_filter.core.filters import GuidedFilter
+import scipy.spatial.distance
 import numpy as np
 
 class feature:
@@ -12,6 +14,9 @@ class feature:
         else:
             self.image = img
             self.diff = difference
+    
+        Gray = (self.image[:,:,0]*0.299 + self.image[:,:,1]*0.587 + self.image[:,:,2]*0.114)
+        self.gray_image = np.array(Gray, np.uint8)
 
     #计算纹理特征
     #size 为图像取样大小
@@ -109,6 +114,77 @@ class feature:
                 res[(i+j*4)*4:(i+j*4+1)*4] = self.GLCM(self.diff[x*i:x*(i+1), y*j:y*(j+1)], x-1, y-1)        
         return res
 
+    #雨迹识别
+    def rain_streak(self, cell_size = 16, template='template.jpg'):
+        #对原图进行导向滤波,并取得高频部分
+        guidedfilter = GuidedFilter(self.gray_image)
+        res = guidedfilter.filter(self.gray_image)
+        blur = np.array(res*255, np.uint8)
+
+        cv2.imshow('2', blur)
+        cv2.imshow('3', self.gray_image)
+
+
+        diff = np.array(blur, np.float32) - np.array(self.gray_image, np.float32)
+        high_fre = np.array((-diff + np.abs(diff))/ 2.0, np.uint8)
+        
+        ret, high_fre = cv2.threshold(high_fre, np.mean(high_fre), 255, cv2.THRESH_BINARY) 
+
+        cv2.imshow('1', high_fre)
+        cv2.waitKey(0)
+
+
+        #计算高频部分的hog特征
+        blockSzie = winSize = (cell_size*2, cell_size*2)
+        blockStride = winStride = cellSize = (cell_size, cell_size)
+        #winSize = blockSzie, blockStride = cellSize  feature为36维
+        hog = cv2.HOGDescriptor(winSize, blockSzie, blockStride, cellSize, 9)
+        hist = hog.compute(high_fre, winStride)
+        hist = hist.reshape(-1, 36)
+    
+        #返回一个36*4维的特征向量
+        res = np.zeros(36*4)
+        im_temp = cv2.imread(template, 0)
+        #计算template的hog特征值
+        temps = []
+        for i in range(4):
+            temp = hog.compute(im_temp[:,720*i:720*i+720], winStride)
+            temp = temp.reshape(-1,  36)
+            temps.append(temp)
+
+        #      4*X*36         Y*36
+        #print temps.shape, hist.shape 
+        #寻找和template马氏距离最大的块的hog特征值
+        for j in range(4):
+            mmax = 0
+            for i in range(len(hist)):
+                x = np.vstack((temps[j], hist[i]))
+                x = np.cov(x.T)
+            
+                #fuck the mahalanobis distance，Singular matrix can't calculate this ..
+                try:
+                    x = np.linalg.inv(x)
+                except:
+                    #print traceback.format_exc()                    
+                    continue
+            
+                r = scipy.spatial.distance.mahalanobis(np.mean(temps), hist[i], x)
+                if r > mmax:
+                    mmax = r
+                    #maxi = i
+                    #print mmax, i
+                    res[j * 36 : j * 36 + 36] = hist[i]
+        
+        '''
+        #查看匹配到雨的最佳的块
+        w,h = self.gray_image.shape
+        w = w/16 -1 
+        h = h/16 -1
+        hh = (maxi-1)%w
+        ww= maxi/h -1
+        cv2.imwrite('1.jpg', self.gray_image[ww*16:ww*16+32, hh*16:hh*16+32])
+        '''
+        return res
 
     #色彩饱和度直方图，饱和度特征
     def HSVhistogram(self):
@@ -159,13 +235,15 @@ class feature:
 
     #计算图片特征值
     def get_features(self):
-        #8*4 + 20 + 85 一共137个特征
-        self.features = np.linspace(0, 0, 137)
+        #8*4 + 20 + 85 + 36*4 一共281个特征
+        self.features = np.linspace(0, 0, 281)
         self.features[0:20] = self.HSVhistogram()
         self.features[20:105] = self.DarkChannel()
-        self.features[105:] = self.Grain()
+        self.features[105:137] = self.Grain()
+        self.features[137:] = self.rain_streak()
+
         self.features = np.array(self.features, dtype=np.float32)
-        self.features.shape = 1,137
+        self.features.shape = 1, 281
         return self.features 
 
     #用svm分类天气

@@ -16,8 +16,8 @@ for root, dirs, files in os.walk(path):
         for rroot, ddirs, ffiles in os.walk('%s/%s'%(path, d)):
             count += len(ffiles)
 
-    trainData = np.linspace(0.0, 0.0, 137*count)
-    trainData.shape = count, 137
+    trainData = np.linspace(0.0, 0.0, 281*count)
+    trainData.shape = count, 281
     responses = np.linspace(0.0, 0.0, count)
     responses.shape = count,1
 
