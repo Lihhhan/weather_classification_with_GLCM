@@ -1,45 +1,59 @@
 #coding=utf-8
 import numpy as np
 import sys, os
+from random import randint
 sys.path.append('.')
 import feature, mylog 
 
-#argv[1] is the path of imgsource like '~/workspace/imgsource'
-#example : python get_feature.py ~/workspace/imgsource/test
 
-path = sys.argv[1]
+#argv[1] is the filenamelist of imgsource like 'train.txt'
+#line in filenamelist like '/home/database/snow.jpg 3'
+#example : python get_feature.py ~/workspace/imgsource/test.txt
+
+filenamelist = sys.argv[1]
 log = mylog.mylog('caculate')
+out = filenamelist.split('.')[1]
+print '%s_res.npy'%out
 
-count = 0
-for root, dirs, files in os.walk(path):
-    for d in dirs: 
-        for rroot, ddirs, ffiles in os.walk('%s/%s'%(path, d)):
-            count += len(ffiles)
+with open(filenamelist) as f:
+    trainData = np.array([])
+    responses = np.array([])
+   
+    idx = 0
+    for line in f:
+        line = line.strip()
+        path, labels = line.split()
+        
 
-    trainData = np.linspace(0.0, 0.0, 281*count)
-    trainData.shape = count, 281
-    responses = np.linspace(0.0, 0.0, count)
-    responses.shape = count,1
 
-    i = 0 
-    for d in dirs:
-        for rroot, ddirs, ffiles in os.walk('%s/%s'%(path, d)):
-            for f in ffiles:
-                responses[i] =  np.float32(d)
-                log.info('get features from %s/%s/%s'%(path, d, f))
-                im = feature.feature('%s/%s/%s' %(path, d, f))
-                trainData[i] = np.float32(im.get_features())
-                i += 1
+        log.info('get features from %s'%(path)) 
 
-    trainData = np.array(trainData, dtype = np.float32)
-    responses = np.array(responses, dtype = np.float32)
+        im = feature.feature(path)
 
-    np.save('./data/featuress.npy', trainData)
-    np.save('./data/res_featuress.npy', responses)
-    log.info('get_features from dir %s  finished'%path)
+        responses = np.append(responses, np.float32(labels))
+        trainData = np.append(trainData, np.float32(im.get_features()))
     
-    #这是一个坑，这个循环会进两次..第二次是空值会覆盖掉有效值，所以要break！
-    break
+        trainData = np.array(trainData, dtype = np.float32)
+        responses = np.array(responses, dtype = np.float32)
+        trainData.shape = (-1, 281)
+        responses.shape = (1, -1)
+
+        idx += 1 
+
+        if idx%100 == 0:
+            np.save('.%s.npy'%out, trainData)
+            np.save('.%s_res.npy'%out, responses)
+            #np.save('./weatherdata/features.npy', trainData)
+            #np.save('./weatherdata/res_features.npy', responses)
+            log.info('save result %s'%idx)
+
+np.save('.%s.npy'%out, trainData)
+np.save('.%s_res.npy'%out, responses)
+#np.save('./weatherdata/features.npy', trainData)
+#np.save('./weatherdata/res_features.npy', responses)
+
+log.info('get_features from dir %s  finished'%filenamelist)
+    
 
 
 
