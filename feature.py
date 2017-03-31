@@ -125,8 +125,9 @@ class feature:
         #cv2.imshow('3', self.gray_image)
 
 
-        diff = np.array(blur, np.float32) - np.array(self.gray_image, np.float32)
-        high_fre = np.array((-diff + np.abs(diff))/ 2.0, np.uint8)
+        high_fre = blur - self.gray_image
+        #diff = np.array(blur, np.float32) - np.array(self.gray_image, np.float32)
+        #high_fre = np.array((-diff + np.abs(diff))/ 2.0, np.uint8)
         
         ret, high_fre = cv2.threshold(high_fre, np.mean(high_fre), 255, cv2.THRESH_BINARY) 
 
@@ -208,7 +209,8 @@ class feature:
                 self.Contrast[q] = p
                 i = int(Count[p]/0.05)
         #占图像5%,10%..100%的饱和度的值,20个特征
-        return self.Contrast
+        a = np.sum(self.Contrast)
+        return self.Contrast/float(a)
 
     #灰度
     def DarkChannel(self):
@@ -231,7 +233,7 @@ class feature:
             l += n**2
         
         #print self.HazeMedian[0],85个特征
-        return self.HazeMedian
+        return self.HazeMedian/255.0
 
     #计算图片特征值
     def get_features(self):
